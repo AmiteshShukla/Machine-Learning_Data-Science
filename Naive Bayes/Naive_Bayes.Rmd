@@ -1,0 +1,482 @@
+---
+title: "Naive_Bayes_Amitesh_Shukla"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Own Implementation of Naive Bayes. Library Not used.
+
+```{r}
+library(caret)
+#Read and load the dataset
+pimdata<-read.csv('pima-indians-diabetes.data', header=FALSE)
+
+ind_feat<-pimdata[,-c(9)] # Remove the target label. Conatins independent features
+dep_label<-pimdata[,9] # Target label. Dependent variable for Naive Bayes
+
+#Array to store the scores in each of the 10 runs
+training_score<-array(dim=10)
+test_score<-array(dim=10)
+set.seed(26)
+#Create different partitions 10 times and do the prediction
+#Measure the score/accuracy in each run
+for (wi in 1:10) {
+ data_partition<-createDataPartition(y=dep_label, p=.8, list=FALSE)
+ 
+ temp_data<-ind_feat
+ #80% portion of the training features and corresponding predicted labels
+ eighty_training<-temp_data[data_partition, ]
+ eighty_label<-dep_label[data_partition]
+
+ #Logic to group the training data in class - diabetic vs non diabetic
+ is_diabetes <- eighty_label > 0
+ positive_training_sample <- eighty_training[is_diabetes, ]
+ negative_training_sample <- eighty_training[!is_diabetes,]
+ 
+ #20% portion of the training features and corresponding predicted labels
+ twenty_test <- temp_data[-data_partition, ]
+ twenty_label <- dep_label[-data_partition]
+ 
+ #To implement Naive Bayes we need to calculate the mean and standard deviation of the values in each class, hence mean/sd for 
+#diabetes/non diabetes class.
+ positive_training_mean <- 
+   sapply(positive_training_sample, mean, na.rm=TRUE)
+ negative_training_mean <- 
+   sapply(negative_training_sample, mean, na.rm=TRUE)
+ 
+ positive_training_sd <- 
+   sapply(positive_training_sample, sd, na.rm=TRUE)
+ negative_training_sd <- 
+   sapply(negative_training_sample, sd, na.rm=TRUE)
+ 
+ 
+ #Positive Training Sample
+ #ptroffset is the distance from the mean of the postive group
+ ptroffsets <- t(t(eighty_training) - positive_training_mean)
+ ptrscales <- t(t(ptroffsets)/positive_training_sd)
+ 
+ #log probability of the postive prediction in 80% split
+ logpy <- sum(eighty_label>0)/length(eighty_label)
+ 
+ #Calculate the log probability of positive predictions
+ # Based on which group a future data is closer to, it will be predicted
+ ptrlogs <- -(1/2)*rowSums(apply(ptrscales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(positive_training_sd))
+                         + logpy
+ 
+ #Negative Training Sample
+ ntroffsets <- t(t(eighty_training)-negative_training_mean)
+ ntrscales <- t(t(ntroffsets)/negative_training_sd)
+ 
+ 
+ lognpy <- sum(eighty_label==0)/length(eighty_label)
+ 
+ #Calculate the log probability of negative predictions
+ #Based on which group a future data is closer to, it will be predicted
+ ntrlogs<- -(1/2)*rowSums(apply(ntrscales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(negative_training_sd))
+                         + lognpy
+ 
+ lvwtr <- ptrlogs > ntrlogs
+ correct_prediction <- lvwtr == eighty_label
+ 
+ training_score[wi] <- sum(correct_prediction)/
+   (sum(correct_prediction)+sum(!correct_prediction))
+ 
+ #Test the above model with 20% test data
+ pteoffsets <- t(t(twenty_test)-positive_training_mean)
+ ptescales <- t(t(pteoffsets)/positive_training_sd)
+ 
+ logtpy <- sum(twenty_label>0)/length(twenty_label)
+
+ ptelogs<- -(1/2)*rowSums(apply(ptescales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(positive_training_sd))
+                         + logtpy
+ 
+ nteoffsets<-t(t(twenty_test)-negative_training_mean)
+ ntescales<-t(t(nteoffsets)/negative_training_sd)
+ 
+ logntpy <- sum(twenty_label==0)/length(twenty_label)
+
+ ntelogs<--(1/2)*rowSums(apply(ntescales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(negative_training_sd)) 
+                         + logntpy
+ 
+ lvwte <- ptelogs > ntelogs
+ gotrighttest <- lvwte == twenty_label
+ test_score[wi]<-sum(gotrighttest)/
+   (sum(gotrighttest)+sum(!gotrighttest))
+ 
+}
+test_score
+average_accuracy <- sum(test_score)/10
+average_accuracy
+```
+
+#  Adjust so that 0 is treated as a missing value 
+
+```{r}
+
+pimdata<-read.csv('pima-indians-diabetes.data', header=FALSE)
+
+ind_feat<-pimdata[,-c(9)]
+dep_label<-pimdata[,9]
+
+set.seed(260)
+training_score<-array(dim=10)
+test_score<-array(dim=10)
+for (wi in 1:10) {
+ data_partition<-createDataPartition(y=dep_label, p=.8, list=FALSE)
+ 
+ temp_data<-ind_feat
+ eighty_training<-temp_data[data_partition, ]
+  # https://stackoverflow.com/questions/13871614/replacing-values-from-a-column-using-a-condition-in-r
+ # Replacing 0 with NA
+ eighty_training$V3[eighty_training$V3 == 0] <- NA
+ eighty_training$V4[eighty_training$V4 == 0] <- NA
+ eighty_training$V6[eighty_training$V6 == 0] <- NA
+ eighty_training$V8[eighty_training$V8 == 0] <- NA
+
+ eighty_label<-dep_label[data_partition]
+
+ is_diabetes <- eighty_label > 0
+ positive_training_sample <- eighty_training[is_diabetes, ]
+ negative_training_sample <- eighty_training[!is_diabetes,]
+
+ twenty_test <- temp_data[-data_partition, ]
+ # twenty_test$V3[twenty_test$V3 == 0] <- NA
+ # twenty_test$V4[twenty_test$V4 == 0] <- NA
+ # twenty_test$V6[twenty_test$V6 == 0] <- NA
+ # twenty_test$V8[twenty_test$V8 == 0] <- NA
+
+  
+ twenty_label <- dep_label[-data_partition]
+ 
+ positive_training_mean <- 
+   sapply(positive_training_sample, mean, na.rm=TRUE)
+ negative_training_mean <- 
+   sapply(negative_training_sample, mean, na.rm=TRUE)
+ 
+ positive_training_sd <- 
+   sapply(positive_training_sample, sd, na.rm=TRUE)
+ negative_training_sd <- 
+   sapply(negative_training_sample, sd, na.rm=TRUE)
+ 
+ #why is transpose needed??
+ #Positive Training Sample
+ ptroffsets <- t(t(eighty_training) - positive_training_mean)
+ ptrscales <- t(t(ptroffsets)/positive_training_sd)
+ 
+ logpy <- sum(eighty_label>0)/length(eighty_label)
+ 
+ ptrlogs <- -(1/2)*rowSums(apply(ptrscales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(positive_training_sd)) + logpy
+ 
+ #Negative Training Sample
+ ntroffsets <- t(t(eighty_training)-negative_training_mean)
+ ntrscales <- t(t(ntroffsets)/negative_training_sd)
+ 
+lognpy <- sum(eighty_label==0)/length(eighty_label)
+
+ ntrlogs<- -(1/2)*rowSums(apply(ntrscales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(negative_training_sd)) + lognpy
+ 
+ lvwtr <- ptrlogs > ntrlogs
+ correct_prediction <- lvwtr == eighty_label
+ 
+ training_score[wi] <- sum(correct_prediction)/
+   (sum(correct_prediction)+sum(!correct_prediction))
+ 
+ #Test Sample
+ pteoffsets <- t(t(twenty_test)-positive_training_mean)
+ ptescales <- t(t(pteoffsets)/positive_training_sd)
+ 
+ logtpy <- sum(twenty_label>0)/length(twenty_label)
+
+ ptelogs<- -(1/2)*rowSums(apply(ptescales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(positive_training_sd)) + logtpy
+ 
+ nteoffsets<-t(t(twenty_test)-negative_training_mean)
+ ntescales<-t(t(nteoffsets)/negative_training_sd)
+ 
+logntpy <- sum(twenty_label==0)/length(twenty_label)
+
+ ntelogs<--(1/2)*rowSums(apply(ntescales,c(1, 2), function(x)x^2),
+                         na.rm=TRUE) - sum(log(negative_training_sd)) + logntpy
+ 
+ lvwte <- ptelogs > ntelogs
+ gotrighttest <- lvwte == twenty_label
+ test_score[wi]<-sum(gotrighttest)/
+   (sum(gotrighttest)+sum(!gotrighttest))
+ 
+}
+test_score
+average_accuracy <- sum(test_score)/10
+average_accuracy
+```
+
+# Use naive bayes library
+
+```{r}
+pimdata<-read.csv('pima-indians-diabetes.data', header=FALSE)
+library(klaR, quietly = TRUE)
+library(caret, quietly = TRUE)
+
+set.seed(26)
+independent_features<-pimdata[,-c(9)]
+target_labels<-as.factor(pimdata[,9])
+partition_index<-createDataPartition(y=target_labels, p=.8, list=FALSE)
+trax<-independent_features[partition_index,]
+tray<-target_labels[partition_index]
+#Build a Naive Bayes model with 10 fold cross validation
+model<-train(trax, tray, 'naive_bayes', trControl=trainControl(method='cv', number=10))
+testClass<-predict(model,newdata=independent_features[-partition_index,])
+confusionMatrix(data=testClass, target_labels[-partition_index])
+```
+
+
+# Use svmlight to compare the results
+
+```{r}
+library(klaR)
+library(caret)
+rm(list=ls())
+set.seed(120)
+pimdata<-read.csv('pima-indians-diabetes.data', header=FALSE)
+ind_feat<-pimdata[,-c(9)]
+dep_label<-as.factor(pimdata[,9])
+
+partition<-createDataPartition(y=dep_label, p=.8, list=FALSE)
+svm<-svmlight(ind_feat[partition,], dep_label[partition], pathsvm='svm_light_osx.8.4_i7')
+labels<-predict(svm, ind_feat[-partition,])
+data_label<-labels$class
+accuracy <- sum(data_label==dep_label[-partition])/(sum(data_label==dep_label[-partition])+sum(!(data_label==dep_label[-partition])))
+accuracy
+
+```
+
+# MNIST data with Naive Bayes
+
+##Untouched image - Gaussian
+
+```{r}
+load_image_file = function(filename) {
+  ret = list()
+  f = file(filename, 'rb')
+  readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  n    = readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  nrow = readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  ncol = readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  x = readBin(f, 'integer', n = n * nrow * ncol, size = 1, signed = FALSE)
+  close(f)
+  data.frame(matrix(x, ncol = nrow * ncol, byrow = TRUE))
+}
+
+# load label files
+load_label_file = function(filename) {
+  f = file(filename, 'rb')
+  readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  n = readBin(f, 'integer', n = 1, size = 4, endian = 'big')
+  y = readBin(f, 'integer', n = n, size = 1, signed = FALSE)
+  close(f)
+  y
+}
+
+# load images
+train = load_image_file("train-images-idx3-ubyte")
+test  = load_image_file("t10k-images-idx3-ubyte")
+
+# load labels
+train$y = as.factor(load_label_file("train-labels-idx1-ubyte"))
+test$y  = as.factor(load_label_file("t10k-labels-idx1-ubyte"))
+
+# create pixel header
+pixel_header = function(x)
+{
+  out = array()
+  for (ix in 1:x)
+  {
+    out[ix] = sprintf("pixel%i", ix-1)
+  }
+  out[ix+1] = "class"
+  return (out)
+}
+
+ph = pixel_header(784) #adds "class" at [785]
+names(train) = ph      #sets header of training set data frame
+names(test) = ph       #sets header of test set data frame
+
+write.csv(train, file="mnist_train.csv", row.names=FALSE)
+write.csv(test, file="mnist_test.csv", row.names=FALSE)
+
+```
+
+
+```{r}
+train = read.csv("mnist_train.csv", header = TRUE)
+test = read.csv("mnist_test.csv", header = TRUE)
+```
+
+```{r}
+
+library(naivebayes)
+
+data<-train[,-c(785)]
+data_label<-as.factor(train[,785])
+test_data_label<-as.factor(test[,785])
+
+set.seed(260)
+model<- naive_bayes(x=data,y=data_label)
+
+predictions<-predict(model,newdata=test)
+confusionMatrix(data=predictions, test_data_label)
+
+```
+
+#Bounded/stretched image - Gaussian
+
+
+```{r}
+library(imager, quietly)
+train.read = file("train-images-idx3-ubyte", "rb")
+
+ntrain <- matrix(data=NA,nrow=60000,ncol=400)
+
+readBin(train.read, integer(), n=4, endian="big")
+for(i in 1:60000) {
+  m = matrix(readBin(train.read,integer(), size=1, n=28*28,     endian="big",signed=FALSE),28,28)
+  p<-resize(autocrop(as.cimg(m)), size_x = 20, size_y = 20)[, , 1, 1]
+  ntrain[i,] = as.vector(p)
+}
+ntrain = as.data.frame(ntrain)
+
+test.read = file("t10k-images-idx3-ubyte", "rb")
+
+ntest <- matrix(data=0,nrow=10000,ncol=400)
+
+readBin(test.read, integer(), n=4, endian="big")
+for(i in 1:10000) {
+  m = matrix(readBin(test.read,integer(), size=1, n=28*28,     endian="big",signed=FALSE),28,28)
+  p<-resize(autocrop(as.cimg(m)), size_x = 20, size_y = 20)[, , 1, 1]
+  ntest[i,] = as.vector(p)
+}
+ntest = as.data.frame(ntest)
+```
+
+
+```{r}
+
+# load labels
+ntrain$y = as.factor(load_label_file("train-labels-idx1-ubyte"))
+ntest$y  = as.factor(load_label_file("t10k-labels-idx1-ubyte"))
+
+# create pixel header
+pixel_header = function(x)
+{
+  out = array()
+  for (ix in 1:x)
+  {
+    out[ix] = sprintf("pixel%i", ix-1)
+  }
+  out[ix+1] = "class"
+  return (out)
+}
+
+ph = pixel_header(400) #adds "class" at [785]
+names(ntrain) = ph      #sets header of training set data frame
+names(ntest) = ph       #sets header of test set data frame
+
+write.csv(ntrain, file="mnist_train_stretch.csv", row.names=FALSE)
+write.csv(ntest, file="mnist_test_stretch.csv", row.names=FALSE)
+
+```
+
+
+```{r}
+newtrain = read.csv("mnist_train_stretch.csv", header = TRUE)
+newtest = read.csv("mnist_test_stretch.csv", header = TRUE)
+```
+
+```{r}
+
+library(naivebayes)
+
+data<-newtrain[,-c(401)]
+data_label<-as.factor(newtrain[,401])
+test_data_label<-as.factor(newtest[,401])
+
+set.seed(260)
+model<- naive_bayes(x=data,y=data_label)
+
+predictions<-predict(model,newdata=newtest)
+confusionMatrix(data=predictions, test_data_label)
+
+```
+
+##Untouched image - Bernoulli
+
+```{r}
+library(naivebayes)
+
+set.seed(26)
+data<-train[,-c(785)]
+data[data<=127] <- 0
+data[data>127] <- 1
+
+data=as.data.frame(data)
+level <- c(0,1)
+data[]<-data.frame(lapply(data, factor, levels=level))
+data_label<-as.factor(train[,785])
+
+dtest<-test[,-c(785)]
+dtest[dtest<=127] <- 0
+dtest[dtest>127] <- 1
+
+
+dtest=as.data.frame(dtest)
+dtest[]<-data.frame(lapply(dtest, factor, levels=level))
+test_data_label<-as.factor(test[,785])
+
+model<- naive_bayes(x=data,y=data_label,laplace=1)
+predictions<-predict(model,newdata=dtest)
+confusionMatrix(data=predictions, test_data_label)
+
+```
+
+##Bounded/Stretched - Bernoulli
+
+```{r}
+
+library(naivebayes)
+
+set.seed(26)
+data<-newtrain[,-c(401)]
+
+data[data<=127] <- 0
+data[data>127] <- 1
+
+data=as.data.frame(data)
+level <- c(0,1)
+data[]<-data.frame(lapply(data, factor, levels=level))
+data_label<-as.factor(newtrain[,401])
+
+dtest<-newtest[,-c(401)]
+dtest[dtest<=127] <- 0
+dtest[dtest>127] <- 1
+dtest=as.data.frame(dtest)
+level <- c(0,1)
+dtest[]<-data.frame(lapply(dtest, factor, levels=level))
+test_data_label<-as.factor(newtest[,401])
+
+model<- naive_bayes(x=data,y=data_label, laplace=1)
+predictions<-predict(model,newdata=dtest)
+confusionMatrix(data=predictions, test_data_label)
+
+```
