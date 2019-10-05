@@ -1,0 +1,267 @@
+---
+title: "BoxCox_Music_Data_Amitesh_Shukla"
+author: "Amitesh Shukla"
+date: "3/17/2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+set.seed(1234)
+```
+
+## Predict longitude and latitude from the music dataset at https://archive.ics.uci.edu/ml/datasets/Geographical+Original+of+Music
+```{r echo=FALSE}
+data.p1<-read.csv("dataset.p1/data.p1", sep = ",", header = FALSE)
+colnames(data.p1)[117]<-"lat"
+colnames(data.p1)[118]<-"long"
+data.lat<-data.p1[,-118]
+data.long<-data.p1[,-117]
+```
+
+```{r echo=FALSE}
+modellat<-lm(lat ~ ., data.lat)
+modellong<-lm(long ~ ., data.long)
+```
+## Simple Linear Regression Model
+```{r}
+#latitude r squared
+summary(modellat)$r.squared
+#longitude r squared
+summary(modellong)$r.squared
+```
+
+```{r}
+plot(modellat$fitted.values,modellat$residuals, type = "p",pch=1, col="darkblue",
+     main = "residuals vs fitted values - latitude")
+abline(a=0,b=0, lty="dotted")
+```
+
+
+```{r}
+plot(modellong$fitted.values,modellong$residuals, type = "p",pch=1, col="red",
+     main = "residuals vs fitted values - longitude")
+abline(a=0,b=0, lty="dotted")
+```
+
+## Withh BoxCox transformation
+
+```{r echo=FALSE}
+
+data.tp1<-read.csv("dataset.p1/data.p1", sep = ",", header = FALSE)
+data.tp1$V117<-data.tp1$V117 + 90
+data.tp1$V118<-data.tp1$V118 + 180
+colnames(data.tp1)[117]<-"lat"
+colnames(data.tp1)[118]<-"long"
+data.tlat<-data.tp1[,-118]
+data.tlong<-data.tp1[,-117]
+modeltlat<-lm(lat ~ ., data.tlat)
+modeltlong<-lm(long ~ ., data.tlong)
+```
+
+```{r echo=FALSE}
+library(MASS)
+bclat<-boxcox(lat ~ ., data = data.tlat, lambda = seq(-2, 4, 1/10))
+bclong<-boxcox(long ~ ., data = data.tlong, lambda = seq(-2, 4, 1/10))
+latlambda<-which.max(bclat$y)
+longlambda<-which.max(bclong$y)
+latlambda<-bclat$x[latlambda]
+longlambda<-bclong$x[longlambda]
+```
+
+
+## identified lambda for latitude based on log-likelihood:
+```{r echo=FALSE}
+latlambda
+```
+
+## identified lambda for longitude based on log-likelihood:
+```{r echo=FALSE}
+longlambda
+```
+
+```{r echo=FALSE}
+bxlat <- function(value) {
+          ((value^latlambda) -1)/(latlambda)
+}
+bxlong <- function(value) {
+          ((value^longlambda) -1)/(longlambda)
+}
+
+latt<-lapply(X = data.tlat$lat,FUN = bxlat)
+longt<-lapply(X = data.tlong$long,FUN = bxlong)
+
+data.tlat$lt<-unlist(latt)
+data.tlong$ln<-unlist(longt)
+
+modeltlat<-lm(lt ~ ., data.tlat[,-117])
+modeltlong<-lm(ln ~ ., data.tlong[,-117])
+```
+
+```{r}
+#latitude r squared
+summary(modeltlat)$r.squared
+#longitude r squared
+summary(modeltlong)$r.squared
+```
+
+## The box cox transformation looks to improve the regression. As per the below table r-squred values for latitude and longitude seem to improve after the transformation. The box cox transformation on latitude shows major improvement as compared to the longitude. The plot of residulas against fitted values too show the transformation of latitude results in slight decrease in the residuals.
+
+##             Original             BoxCox Transformed
+## Latitude:     0.2928092             0.3269483
+## Longitude:    0.3645767             0.3652043
+
+## L2 regularized regression of music dataset
+```{r echo=FALSE}
+library(glmnet)
+#par(mfrow=c(1, 2))
+modellatu <- cv.glmnet(x=as.matrix(data.tlat[,-117]), y=data.tlat[,117], nfold=10, alpha=0, lambda = c(0, 0.01))
+modellongu <- cv.glmnet(x=as.matrix(data.tlong[,-117]), y=data.tlong[,117], nfold=10, alpha=0, lambda = c(0, 0.01))
+```
+
+```{r echo=FALSE}
+i <- which(modellatu$lambda == modellatu$lambda.min)
+mse.min <- modellatu$cvm[i]
+mse.min
+```
+
+```{r echo=FALSE}
+i <- which(modellongu$lambda == modellongu$lambda.min)
+mse.min <- modellongu$cvm[i]
+mse.min
+```
+
+
+
+```{r}
+library(glmnet)
+#par(mfrow=c(1, 2))
+modellatcvridge <- cv.glmnet(x=as.matrix(data.tlat[,-117]), y=data.tlat[,117], nfold=10, alpha=0)
+modellongcvridge <- cv.glmnet(x=as.matrix(data.tlong[,-117]), y=data.tlong[,117], nfold=10, alpha=0)
+
+plot(modellatcvridge, xlab="lambda - Latitude Model")
+plot(modellongcvridge, xlab="lambda - Longitude Model")
+```
+
+## Minimum lambda and lambda under 1 standard deviation for latitude with
+## ridge regression
+```{r}
+modellatcvridge$lambda.min
+modellatcvridge$lambda.1se
+```
+
+```{r echo=FALSE}
+i <- which(modellatcvridge$lambda == modellatcvridge$lambda.min)
+mse.min <- modellatcvridge$cvm[i]
+```
+
+##minimum mean square error
+```{r}
+mse.min
+```
+
+## Minimum lambda and lambda under 1 standard deviation for longitude with
+## ridge regression(L2 regularization)
+```{r}
+modellongcvridge$lambda.min
+modellongcvridge$lambda.1se
+```
+
+```{r echo=FALSE}
+i <- which(modellongcvridge$lambda == modellongcvridge$lambda.min)
+mse.min <- modellongcvridge$cvm[i]
+```
+
+## minimum mean square error
+```{r}
+mse.min
+```
+
+## L1 regularized regression of music dataset
+
+```{r}
+modellatcvlasso <- cv.glmnet(x=as.matrix(data.tlat[,-117]), y=data.tlat[,117], nfold= 10, alpha=1)
+modellongcvlasso <- cv.glmnet(x=as.matrix(data.tlong[,-117]), y=data.tlong[,117], nfold= 10, alpha=1)
+
+plot(modellatcvlasso, xlab="lambda - Latitude Model")
+plot(modellongcvlasso, xlab="lambda - Longitude Model")
+```
+
+## Minimum lambda and lambda under 1 standard deviation for latitude with
+## lasso regression(L1 regularization) - Latitude
+```{r}
+modellatcvlasso$lambda.min
+modellatcvlasso$lambda.1se
+```
+
+```{r echo=FALSE}
+i <- which(modellatcvlasso$lambda == modellatcvlasso$lambda.min)
+mse.min <- modellatcvlasso$cvm[i]
+```
+
+##minimum mean square error
+```{r}
+mse.min
+```
+
+## Minimum and lambda under 1 standard deviation for longitude with
+## lasso regression(L1 regularization) - Longitude
+```{r}
+modellongcvlasso$lambda.min
+modellongcvlasso$lambda.1se
+```
+
+```{r echo=FALSE}
+i <- which(modellongcvlasso$lambda == modellongcvlasso$lambda.min)
+mse.min <- modellongcvlasso$cvm[i]
+```
+
+##minimum mean square error
+```{r}
+mse.min
+```
+
+```{r}
+coef(modellatcvlasso)
+```
+
+```{r}
+coef(modellongcvlasso)
+```
+## Elastic Net regularized regression of music dataset
+```{r}
+elastic_net<-function(x) {
+      modelenlat <- cv.glmnet(x=as.matrix(data.tlat[,-117]),
+                              y=data.tlat[,117], nfold=10, alpha=x)
+      i <- which(modelenlat$lambda == modelenlat$lambda.min)
+      
+      modelenlong <- cv.glmnet(x=as.matrix(data.tlong[,-117]),
+                               y=data.tlong[,117], alpha=x)
+      j <- which(modelenlong$lambda == modelenlong$lambda.min)
+      #minimum mean square error
+      mse.min.long <- modelenlong$cvm[j]
+      #minimum mean square error
+      mse.min <- modelenlat$cvm[i]
+      cat("Latitude: MSE for alpha",x,"is",mse.min,"\n")
+      cat("Latitude: lambda.min for alpha",x,"is",
+          modelenlat$lambda.min,"\n")
+      cat("Latitude: lambda.1se for alpha",x,"is",
+          modelenlat$lambda.1se,"\n")
+      plot(modelenlat, xlab="lambda - Latitude Model")
+      coef(modelenlat)
+      cat("Longitude:MSE for alpha",x,"is",mse.min.long,"\n")
+      cat("Longitude: lambda.min for alpha",x,"is",
+          modelenlong$lambda.min,"\n")
+      cat("Longitude: lambda.1se for alpha",x,"is",
+          modelenlong$lambda.1se,"\n")
+      plot(modelenlong, xlab="lambda - Longitude Model")
+      coef(modelenlong)
+}
+#par(mfrow=c(1, 2))
+elastic_net(0.2)
+elastic_net(0.6)
+elastic_net(0.8)
+```
