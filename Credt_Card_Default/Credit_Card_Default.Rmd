@@ -1,0 +1,180 @@
+---
+title: "Credit Card Default - Amitesh Shukla"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Logistic Regression - Credit card default predictions of the data set at http://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients
+
+```{r echo=FALSE}
+library(readxl)
+library(caret)
+data.p2 <- read_excel("data.p2.xls", col_types = "numeric")
+
+data.p2<-data.p2[,-1]
+ind_feat<-as.data.frame(data.p2[,-24]) # Remove the target label. Conatins independent features
+dep_label<-as.data.frame(data.p2[,c(24)]) # Target label. Dependent variable for Naive Bayes
+dl<-as.numeric(unlist(dep_label))
+data_partition<-createDataPartition(y=dl, p=.8, list=FALSE)
+temp_data<-ind_feat
+train<-temp_data[data_partition, ]
+trclass<-dl[data_partition]
+test <- temp_data[-data_partition, ]
+teclass <- dl[-data_partition]
+
+train<-cbind(train,trclass)
+gc()
+model<-glm(trclass ~ ., data=train, family = binomial(link="logit"))
+lme<-model$lambda.min
+lse<-model$lambda.1se
+i <- which(model$lambda == model$lambda.min)
+mse.min <- model$cvm[i]
+lse
+lme
+mse.min
+
+pred <- plogis(predict(model, test))
+p_pred <- pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+```
+
+## Accuracy from simple model without regularization
+```{r}
+accuracy
+```
+
+## With Ridge regularization(L2 Regularized)
+```{r echo=FALSE}
+library(glmnet)
+
+cvtrain<-train[,-24]
+
+modelridge <- cv.glmnet(x=data.matrix(cvtrain), y=train$trclass, alpha=0,family="binomial",type.measure = "mse")
+lme<-modelridge$lambda.min
+lse<-modelridge$lambda.1se
+i <- which(modelridge$lambda == modelridge$lambda.min)
+mse.min <- modelridge$cvm[i]
+lse
+lme
+mse.min
+coef(modelridge)
+plot(modelridge, xlab="lambda - Ridge Model")
+ridge_pred <- plogis(predict(modelridge, s=lme,newx=data.matrix(test)))
+p_pred <- ridge_pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+```
+
+# Accuracy with ridge regularized model
+
+```{r}
+accuracy
+```
+
+
+## Lasso regularization(L1 Regularized)
+```{r}
+library(glmnet)
+
+cvtrain<-train[,-24]
+
+modellasso <- cv.glmnet(x=data.matrix(cvtrain), y=train$trclass, alpha=1,family="binomial",type.measure = "mse")
+lme<-modellasso$lambda.min
+lse<-modellasso$lambda.1se
+
+i <- which(modellasso$lambda == modellasso$lambda.min)
+mse.min <- modellasso$cvm[i]
+lse
+lme
+mse.min
+coef(modellasso)
+plot(modellasso, xlab="lambda - Lasso Model")
+lasso_pred <- plogis(predict(modellasso, s=lme,newx=data.matrix(test)))
+p_pred <- lasso_pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+```
+
+# Accuracy with lasso regularized model
+```{r}
+accuracy
+```
+
+## Elastic Net regularization
+```{r}
+library(glmnet)
+
+cvtrain<-train[,-24]
+
+modelen.2 <- cv.glmnet(x=data.matrix(cvtrain), y=train$trclass, alpha=0.2,family="binomial",type.measure = "mse")
+lme<-modelen.2$lambda.min
+lse<-modelen.2$lambda.1se
+i <- which(modelen.2$lambda == modelen.2$lambda.min)
+mse.min <- modelen.2$cvm[i]
+lse
+lme
+mse.min
+coef(modelen.2)
+plot(modelen.2, xlab="lambda - Elastic Net Model - alpha = 0.2")
+en_pred <- plogis(predict(modelen.2, s=lme,newx=data.matrix(test)))
+p_pred <- en_pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+accuracy
+
+modelen.6 <- cv.glmnet(x=data.matrix(cvtrain), y=train$trclass, alpha=0.6,family="binomial",type.measure = "mse")
+lme<-modelen.6$lambda.min
+lse<-modelen.6$lambda.1se
+
+i <- which(modelen.6$lambda == modelen.6$lambda.min)
+mse.min <- modelen.6$cvm[i]
+lse
+lme
+mse.min
+coef(modelen.6)
+plot(modelen.6, xlab="lambda - Elastic Net Model - alpha = 0.6")
+en_pred <- plogis(predict(modelen.6, s=lme,newx=data.matrix(test)))
+p_pred <- en_pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+accuracy
+
+modelen.8 <- cv.glmnet(x=data.matrix(cvtrain), y=train$trclass, alpha=0.8,family="binomial",type.measure = "mse")
+lme<-modelen.8$lambda.min
+lse<-modelen.8$lambda.1se
+
+i <- which(modelen.8$lambda == modelen.8$lambda.min)
+mse.min <- modelen.8$cvm[i]
+lse
+lme
+mse.min
+coef(modelen.8)
+plot(modelen.8, xlab="lambda - Elastic Net Model - alpha = 0.8")
+en_pred <- plogis(predict(modelen.8, s=lme,newx=data.matrix(test)))
+p_pred <- en_pred >= 0.5
+
+gotright<-teclass == p_pred
+accuracy<-sum(gotright)/
+   (sum(gotright)+sum(!gotright))
+```
+
+# Accuracy with elastic net
+```{r}
+accuracy
+
+
+```
